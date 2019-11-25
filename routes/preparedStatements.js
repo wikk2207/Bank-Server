@@ -7,7 +7,7 @@ module.exports = {
                         VALUES (?,?,?,NOW())',
     addTransferSTMT: 'INSERT INTO user_transfer(id_user, id_transfer) \
                         VALUES (?, LAST_INSERT_ID())',
-    myTransfersSTMT: 'SELECT created, title, amount, account_number \
+    myTransfersSTMT: 'SELECT id,created, title, amount, account_number \
                         FROM user_transfer A JOIN transfers B ON A.id_transfer = B.id \
                         WHERE A.id_user=? \
                         ORDER BY created DESC',  
