@@ -30,7 +30,7 @@ SIGNAL SQLSTATE '45000'
 SET MESSAGE_TEXT = 'Już istnieje konto dla podanego adresu email.';
 	END IF;
 IF EXISTS (SELECT account_number FROM users WHERE account_number=NEW.account_number) THEN 
-SIGNAL SQLSTATE '45000' 
+SIGNAL SQLSTATE '50000' 
 SET MESSAGE_TEXT = 'Ten numer konta już istnieje w bazie.';
 	END IF;
 END$$
@@ -41,7 +41,7 @@ CREATE TRIGGER add_transfer BEFORE INSERT ON user_transfer
 FOR EACH ROW
 BEGIN
 IF NOT EXISTS (SELECT id FROM users WHERE id=NEW.id_user) THEN
-	SIGNAL SQLSTATE '45000'
+	SIGNAL SQLSTATE '46000'
     SET MESSAGE_TEXT = 'Taki użytkownik nie istnieje';
 ELSEIF NOT EXISTS (SELECT id FROM transfers WHERE id=NEW.id_transfer) THEN
 	SIGNAL SQLSTATE '46000'

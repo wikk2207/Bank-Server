@@ -58,7 +58,7 @@ router.post("/register", async (req, res) =>  {
 });
 
 router.post('/login',  (req, res) => {
-    if(req.body.login==="" || re.body.password===""){
+    if(req.body.login==="" || req.body.password===""){
         res.json({
             status: 400,
             message: 'Nieprawidłowe dane',
@@ -90,7 +90,7 @@ router.post('/login',  (req, res) => {
                     res.json({
                         status: 201,
                         message: "Udało się zalogować!",
-                        id: result,
+                        id: result[0].id,
                     })
                 }
             });
@@ -125,6 +125,26 @@ router.post('/remind/password', (req, res) => {
           console.log('Email sent: ' + info.response);
         }
       });
+});
+
+router.get('/history/:id', (req, res) => {
+    con.query("USE bankdb");
+    con.query( {
+        sql: preparedStmt.myTransfersSTMT,
+        values: [req.params.id]
+    },   function (err, result) {
+        if (err) {
+                throw err;
+        }
+        else {
+            res.json({
+                status: 201,
+          transfers: result,
+
+       });
+        }
+       
+    });
 })
 
 
