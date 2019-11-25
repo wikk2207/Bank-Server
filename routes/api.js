@@ -3,6 +3,7 @@ const router = express.Router();
 const server = require("../index");
 const config = require('../config/index');
 const mysql = require('mysql');
+const jwt = require('jsonwebtoken')
 const preparedStmt = require("./preparedStatements");
 var nodemailer = require('nodemailer');
 const argon2 = require('argon2');
@@ -69,13 +70,18 @@ router.post('/login',  (req, res) => {
         sql: preparedStmt.emailSTMT,
         values: [req.body.login]
     }, async  function (err, result,fields) {
-        if (!result[0]) {
+        if (!result) {
             res.json({
                 status: 500,
                 message: "Nieprawidłowy login lub hasło",
             })
 
-        } else {
+        } else if(!result[0]) {
+            res.json({
+                status: 500,
+                message: "Nieprawidłowy login lub hasło",
+            })
+        } else  {
             var hashedpassword = await sha3_512(req.body.password + result[0].email);
             con.query( {
                 sql: preparedStmt.loginSTMT,
@@ -87,10 +93,16 @@ router.post('/login',  (req, res) => {
                 message: "Nieprawidłowy login lub hasło",
             })
                 } else {
+                    console.log(result[0].id);
+                    var token = jwt.sign({ id: result[0].id}, config.secret, {
+                        expiresIn: 900, // expires in 15 minutes
+                      });
                     res.json({
-                        status: 201,
+                        status: 200,
                         message: "Udało się zalogować!",
                         id: result[0].id,
+                        auth: true,
+                        token: token,
                     })
                 }
             });
@@ -127,11 +139,12 @@ router.post('/remind/password', (req, res) => {
       });
 });
 
-router.get('/history/:id', (req, res) => {
+router.get('/history', verifyToken, (req, res) => {
+    console.log(req.userId);
     con.query("USE bankdb");
     con.query( {
         sql: preparedStmt.myTransfersSTMT,
-        values: [req.params.id]
+        values: [req.userId]
     },   function (err, result) {
         if (err) {
                 throw err;
@@ -153,6 +166,23 @@ router.get('/', (req, res) => {
         message: 'Behold The MEVN Stack!'
     });
 });
+
+function verifyToken(req, res, next) {
+    console.log(req.headers['x-access-token']);
+    var token = req.headers['x-access-token'];
+    if (!token)
+      return res.status(403).send({ auth: false, message: 'No token provided.' });
+      
+    jwt.verify(token, config.secret, function(err, decoded) {
+      if (err)
+      return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
+        
+      // if everything good, save to request for use in other routes
+      req.userId = decoded.id;
+      next();
+    });
+  }
+  
 
 function randomPassword(length) {
     var result           = '';
