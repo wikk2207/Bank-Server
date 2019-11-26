@@ -141,7 +141,6 @@ router.post('/reset/password', (req, res) => {
                 subject: 'Nowe hasło do banku',
                 text: new_pass,
             };
-            console.log('wysyłąm maila');
             transporter.sendMail(mailOptions, function (error, info) {
                 if (error) {
                     console.log(error);
