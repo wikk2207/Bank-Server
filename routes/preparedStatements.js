@@ -6,10 +6,12 @@ module.exports = {
     createTransferSTMT: 'INSERT INTO transfers (amount, title, account_number, created) \
                         VALUES (?,?,?,NOW())',
     addTransferSTMT: 'INSERT INTO user_transfer(id_user, id_transfer) \
-                        VALUES (?, LAST_INSERT_ID())',
+                        VALUES (?, ?)',
     myTransfersSTMT: 'SELECT id,created, title, amount, account_number \
                         FROM user_transfer A JOIN transfers B ON A.id_transfer = B.id \
                         WHERE A.id_user=? \
                         ORDER BY created DESC',  
+    transferSTMT: 'SELECT * FROM transfers WHERE id=?',
+    checkTransferSTMT: 'SELECT id_user FROM user_transfer WHERE id_transfer=?',
     emailSTMT: 'SELECT email FROM users WHERE login=?',        
 }
