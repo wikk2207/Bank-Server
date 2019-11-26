@@ -160,7 +160,6 @@ router.get('/history', verifyToken, (req, res) => {
 
 router.get('/transfer', verifyToken, (req, res) => {
     con.query("USE bankdb");
-    console.log(req.headers);
     con.query({
         sql: preparedStmt.checkTransferSTMT,
         values: [req.headers.transferid],
@@ -168,7 +167,6 @@ router.get('/transfer', verifyToken, (req, res) => {
         if (err) {
             return res.status(500).send({ message: 'Coś poszło nie tak.' });
         } else {
-            console.log(result);
             if(result[0].id_user!=req.userId) {
                 return res.status(403).send({ message: "Nie masz dostępu do tej transakcji." })
             } else {
@@ -176,7 +174,6 @@ router.get('/transfer', verifyToken, (req, res) => {
                     sql: preparedStmt.transferSTMT,
                     values: [req.headers.transferid],
                 }, function (err, result, fields) {
-                    console.log(result);
                     if (err) {
                         return res.status(500).send({ message: 'Coś poszło nie tak.' });
                     } else {
