@@ -111,30 +111,48 @@ router.post('/login', (req, res) => {
 })
 
 
-router.post('/remind/password', (req, res) => {
+router.post('/reset/password', (req, res) => {
     var email = req.body.email;
     var new_pass = randomPassword(10);
-    var transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: 'bankapppwr@gmail.com',
-            pass: 'b4nkapp_gm4il'
+    console.log(email);
+    con.query("USE bankdb");
+    con.query({
+        sql: preparedStmt.getLoginSTMT,
+        values: email,
+    }, function (err, result) {
+        console.log(result[0]);
+        if (!result[0]) {
+            return res.status(404).send({ message: "Nie istnieje konto dla podanego adresu e-mail." })
         }
-    });
+        else {
+            var pass = sha3_512(new_pass + result[0].login);
 
-    var mailOptions = {
-        from: 'bankapppwr@gmail.com',
-        to: 'myfriend@yahoo.com',
-        subject: 'Sending Email using Node.js',
-        text: 'That was easy!'
-    };
+            var transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: 'bankapppwr@gmail.com',
+                    pass: 'b4nkapp_gm4il'
+                }
+            });
+        
+            var mailOptions = {
+                from: 'Bank App <bankapppwr@gmail.com>',
+                to: email,
+                subject: 'Nowe hasło do banku',
+                text: new_pass,
+            };
+            console.log('wysyłąm maila');
+            transporter.sendMail(mailOptions, function (error, info) {
+                if (error) {
+                    console.log(error);
+                } else {
+                    console.log('Email sent: ' + info.response);
+                }
+            });
 
-    transporter.sendMail(mailOptions, function (error, info) {
-        if (error) {
-            console.log(error);
-        } else {
-            console.log('Email sent: ' + info.response);
+            return res.status(200).send({ message: "Wysłano nowe hasło na maila." })
         }
+
     });
 });
 
