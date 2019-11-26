@@ -93,7 +93,6 @@ router.post('/login',  (req, res) => {
                 message: "Nieprawidłowy login lub hasło",
             })
                 } else {
-                    console.log(result[0].id);
                     var token = jwt.sign({ id: result[0].id}, config.secret, {
                         expiresIn: 900, // expires in 15 minutes
                       });
@@ -140,7 +139,6 @@ router.post('/remind/password', (req, res) => {
 });
 
 router.get('/history', verifyToken, (req, res) => {
-    console.log(req.userId);
     con.query("USE bankdb");
     con.query( {
         sql: preparedStmt.myTransfersSTMT,
@@ -158,7 +156,53 @@ router.get('/history', verifyToken, (req, res) => {
         }
        
     });
-})
+});
+
+router.post('/create/transfer', verifyToken, (req,res) => {
+    var account_number = req.body.account_number;
+    var amount = req.body.amount;
+    var title = req.body. title;
+
+    if(!account_number || !amount || !title) {
+        return res.status(403).send({message: 'Brak danych.' });
+    }
+
+    var regex = /^\d+$/;
+    if(!regex.test(account_number) || !account_number.length===26) {
+        return res.status(403).send({message: 'Nieprawidłowy numer konta.' });
+    }
+    if(isNaN(amount)) {
+        return res.status(403).send({message: 'Nieprawidłowa kwota.' });
+    }
+
+    con.query("USE bankdb");
+    con.query( {
+        sql: preparedStmt.createTransferSTMT,
+        values: [amount, title, account_number]
+    }, async  function (err, result,fields) {
+        if(err) {
+            console.log(err);
+            return res.status(500).send({message: 'Coś poszło nie tak.' });
+        } else {
+            con.query( {
+                sql: preparedStmt.addTransferSTMT,
+                values: [req.userId],
+            }), async function(err2, result2) {
+                if(err2) {
+                    console.log(err2);
+                    return res.status(500).send({message: 'Coś poszło nie tak.' });
+                } else {
+                    console.log(result);
+                    console.log(result2);
+                    return res.status(200).send({transferId: result.insertId, message: "Transakcja powiodła się."})
+                }
+            }
+        }
+    });
+
+
+
+});
 
 
 router.get('/', (req, res) => {
@@ -168,10 +212,14 @@ router.get('/', (req, res) => {
 });
 
 function verifyToken(req, res, next) {
-    console.log(req.headers['x-access-token']);
     var token = req.headers['x-access-token'];
-    if (!token)
-      return res.status(403).send({ auth: false, message: 'No token provided.' });
+    if (!token) {
+        var token = req.body.headers['x-access-token'];
+        if(!token) {
+            return res.status(403).send({ auth: false, message: 'No token provided.' });
+        }
+    }
+        
       
     jwt.verify(token, config.secret, function(err, decoded) {
       if (err)
