@@ -6,9 +6,10 @@ const mysql = require('mysql');
 const jwt = require('jsonwebtoken')
 const preparedStmt = require("./preparedStatements");
 var nodemailer = require('nodemailer');
-const argon2 = require('argon2');
 var validator = require("email-validator");
 var sha3_512 = require("js-sha3").sha3_512;
+var crypto = require('crypto');
+var argon2i = require('argon2-ffi').argon2i;
 
 
 
@@ -20,6 +21,7 @@ router.post("/register", async (req, res) => {
     var password = req.body.password;
     var email = req.body.email;
     var account_number = randomAccountNumber();
+    var hashedpassword = "";
 
     if (login === "" || password === "" || email === "" || !validator.validate(email)) {
         res.json({
@@ -28,33 +30,36 @@ router.post("/register", async (req, res) => {
         });
     }
 
-    var hashedpassword = await sha3_512(password + email);
-    con.query({
-        sql: preparedStmt.registerSTMT,
-        values: [login, hashedpassword, email, account_number]
-    }, function (err, result) {
-        if (err) {
-            if (err.sqlState === '50000') {
-                res.json({
-                    status: 500,
-                    message: 'Spróbuj jeszcze raz!',
-                });
-            } else if (err.sqlState === '45000') {
-                res.json({
-                    status: 400,
-                    message: err.sqlMessage,
-                });
-            } else {
-                throw err;
-            }
-        }
-        else {
-            res.json({
-                status: 201,
-                message: 'Rejestracja powiodła się!',
+    crypto.randomBytes(32, function (err, salt) {
+        if (err) throw err;
+        argon2i.hash(password, salt).then(hash => {
+            con.query({
+                sql: preparedStmt.registerSTMT,
+                values: [login, hash, email, account_number]
+            }, function (err, result) {
+                if (err) {
+                    if (err.sqlState === '50000') {
+                        res.json({
+                            status: 500,
+                            message: 'Spróbuj jeszcze raz!',
+                        });
+                    } else if (err.sqlState === '45000') {
+                        res.json({
+                            status: 400,
+                            message: err.sqlMessage,
+                        });
+                    } else {
+                        throw err;
+                    }
+                }
+                else {
+                    res.json({
+                        status: 201,
+                        message: 'Rejestracja powiodła się!',
+                    });
+                }
             });
-        }
-
+        });
     });
 });
 
@@ -67,7 +72,7 @@ router.post('/login', (req, res) => {
     }
     con.query("USE bankdb");
     con.query({
-        sql: preparedStmt.emailSTMT,
+        sql: preparedStmt.passwordSTMT,
         values: [req.body.login]
     }, async function (err, result, fields) {
         if (!result) {
@@ -82,29 +87,26 @@ router.post('/login', (req, res) => {
                 message: "Nieprawidłowy login lub hasło",
             })
         } else {
-            var hashedpassword = await sha3_512(req.body.password + result[0].email);
-            con.query({
-                sql: preparedStmt.loginSTMT,
-                values: [req.body.login, hashedpassword],
-            }, function (err, result) {
-                if (!result[0]) {
-                    res.json({
-                        status: 500,
-                        message: "Nieprawidłowy login lub hasło",
-                    })
-                } else {
-                    var token = jwt.sign({ id: result[0].id }, config.secret, {
-                        expiresIn: 900, // expires in 15 minutes
-                    });
-                    res.json({
-                        status: 200,
-                        message: "Udało się zalogować!",
-                        id: result[0].id,
-                        auth: true,
-                        token: token,
-                    })
-                }
-            });
+            argon2i.verify(result[0].password, req.body.password)
+                .then(correct => {
+                    if (correct) {
+                        var token = jwt.sign({ id: result[0].id }, config.secret, {
+                            expiresIn: 900, // expires in 15 minutes
+                        });
+                        res.json({
+                            status: 200,
+                            message: "Udało się zalogować!",
+                            id: result[0].id,
+                            auth: true,
+                            token: token,
+                        })
+                    } else {
+                        res.json({
+                            status: 500,
+                            message: "Nieprawidłowy login lub hasło",
+                        })
+                    }
+                });
         }
 
     });
@@ -124,41 +126,47 @@ router.post('/reset/password', (req, res) => {
         }
         else {
             var pass = sha3_512(new_pass + result[0].login);
-            var hashedpassword = sha3_512(pass + email);
-            con.query({
-                sql: preparedStmt.changePasswordSTMT,
-                values: [hashedpassword, email],
-            }, function (err, result) {
-                if (err) {
-                    console.log(err);
-                    return res.status(500).send({ message: 'Coś poszło nie tak.' });
-                } else {
-                    var transporter = nodemailer.createTransport({
-                        service: 'gmail',
-                        auth: {
-                            user: 'bankapppwr@gmail.com',
-                            pass: 'b4nkapp_gm4il'
-                        }
-                    });
 
-                    var mailOptions = {
-                        from: 'Bank App <bankapppwr@gmail.com>',
-                        to: email,
-                        subject: 'Nowe hasło do banku',
-                        text: new_pass,
-                    };
-                    transporter.sendMail(mailOptions, function (error, info) {
-                        if (error) {
-                            console.log(error);
+            crypto.randomBytes(32, function (err, salt) {
+                if (err) throw err;
+                argon2i.hash(pass, salt).then(hash => {
+                    con.query({
+                        sql: preparedStmt.changePasswordSTMT,
+                        values: [hash, email],
+                    }, function (err, result) {
+                        if (err) {
+                            console.log(err);
+                            return res.status(500).send({ message: 'Coś poszło nie tak.' });
                         } else {
-                            console.log('Email sent: ' + info.response);
+                            var transporter = nodemailer.createTransport({
+                                service: 'gmail',
+                                auth: {
+                                    user: 'bankapppwr@gmail.com',
+                                    pass: 'b4nkapp_gm4il'
+                                }
+                            });
+                            var mailOptions = {
+                                from: 'Bank App <bankapppwr@gmail.com>',
+                                to: email,
+                                subject: 'Nowe hasło do banku',
+                                text: new_pass,
+                            };
+                            transporter.sendMail(mailOptions, function (error, info) {
+                                if (error) {
+                                    console.log(error);
+                                } else {
+                                    console.log('Email sent: ' + info.response);
+                                }
+                            });
+
+                            return res.status(200).send({ message: "Wysłano nowe hasło na maila." })
                         }
                     });
+                });
+        });
 
-                    return res.status(200).send({ message: "Wysłano nowe hasło na maila." })
-                }
-            });
-        }
+
+}
 
     });
 });
