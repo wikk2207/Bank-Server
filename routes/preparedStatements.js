@@ -1,7 +1,7 @@
 module.exports = {
     loginSTMT: 'SELECT id from users WHERE login=? AND password=?',
     registerSTMT: 'INSERT INTO users (login, password, email, account_number) VALUES (?,?,?,?)',
-    changePasswordSTMT: 'UPDATE users SET password=? WHERE login=? AND password=?',
+    changePasswordSTMT: 'UPDATE users SET password=? WHERE email=?',
     resetPasswordSTMT: 'UPDATE users SET password=? WHERE email=?',
     createTransferSTMT: 'INSERT INTO transfers (amount, title, account_number, created) \
                         VALUES (?,?,?,NOW())',
