@@ -13,6 +13,6 @@ module.exports = {
                         ORDER BY created DESC',  
     transferSTMT: 'SELECT * FROM transfers WHERE id=?',
     checkTransferSTMT: 'SELECT id_user FROM user_transfer WHERE id_transfer=?',
-    passwordSTMT: 'SELECT password FROM users WHERE login=?',    
+    passwordSTMT: 'SELECT password, id FROM users WHERE login=?',    
     getLoginSTMT: 'SELECT login FROM users WHERE email=?'    
 }
