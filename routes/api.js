@@ -171,7 +171,7 @@ router.post('/reset/password', (req, res) => {
     });
 });
 
-router.get('/history', verifyToken, (req, res) => {
+router.get('/history', verifyToken, refreshToken, (req, res) => {
     con.query("USE bankdb");
     con.query({
         sql: preparedStmt.myTransfersSTMT,
@@ -184,33 +184,33 @@ router.get('/history', verifyToken, (req, res) => {
             res.json({
                 status: 201,
                 transfers: result,
-
+                token: req.newToken,
             });
         }
 
     });
 });
 
-router.get('/transfer', verifyToken, (req, res) => {
+router.get('/transfer', verifyToken, refreshToken, (req, res) => {
     con.query("USE bankdb");
     con.query({
         sql: preparedStmt.checkTransferSTMT,
         values: [req.headers.transferid],
     }, function (err, result, fields) {
         if (err) {
-            return res.status(500).send({ message: 'Coś poszło nie tak.' });
+            return res.status(500).send({ message: 'Coś poszło nie tak.', token: refreshToken.newToken });
         } else {
             if (result[0].id_user != req.userId) {
-                return res.status(403).send({ message: "Nie masz dostępu do tej transakcji." })
+                return res.status(403).send({ message: "Nie masz dostępu do tej transakcji.", token: refreshToken.newToken })
             } else {
                 con.query({
                     sql: preparedStmt.transferSTMT,
                     values: [req.headers.transferid],
                 }, function (err, result, fields) {
                     if (err) {
-                        return res.status(500).send({ message: 'Coś poszło nie tak.' });
+                        return res.status(500).send({ message: 'Coś poszło nie tak.', token: refreshToken.newToken });
                     } else {
-                        return res.status(200).send({ transfer: result[0] })
+                        return res.status(200).send({ transfer: result[0], token: refreshToken.newToken })
                     }
                 })
             }
@@ -220,16 +220,19 @@ router.get('/transfer', verifyToken, (req, res) => {
 
 })
 
-router.post('/create/transfer', verifyToken, addTransfer, (req, res) => {
+router.post('/create/transfer', verifyToken, refreshToken, addTransfer, (req, res) => {
     con.query("USE bankdb");
+    console.log("create transfer");
+    console.log(req.userId);
     con.query({
         sql: preparedStmt.addTransferSTMT,
         values: [req.userId, req.transferId],
     }, function (err, result, fields) {
         if (err) {
-            return res.status(500).send({ message: 'Coś poszło nie tak.' });
+            console.log(err)
+            return res.status(500).send({ message: 'Coś poszło nie tak.', token: req.newToken });
         } else {
-            return res.status(200).send({ transferId: req.transferId, message: "Transakcja powiodła się." })
+            return res.status(200).send({ transferId: req.transferId, message: "Transakcja powiodła się.", token: req.newToken })
         }
     })
 });
@@ -241,7 +244,19 @@ router.get('/', (req, res) => {
     });
 });
 
+function refreshToken(req, res, next) {
+    console.log("refresh token");
+    console.log(req.userId);
+    var token = jwt.sign({ id: req.userId }, config.secret, {
+        expiresIn: 900, // expires in 15 minutes
+    });
+    req.newToken = token;
+    next();
+}
+
 function addTransfer(req, res, next) {
+    console.log("add transfer");
+    console.log(req.userId);
     var account_number = req.body.account_number;
     var amount = req.body.amount;
     var title = req.body.title;
@@ -277,23 +292,27 @@ function addTransfer(req, res, next) {
 }
 
 function verifyToken(req, res, next) {
+    console.log("verify token");
     var token = req.headers['x-access-token'];
     if (!token) {
         var token = req.body.headers['x-access-token'];
         if (!token) {
             return res.status(403).send({ auth: false, message: 'No token provided.' });
         }
-    }
 
-    jwt.verify(token, config.secret, function (err, decoded) {
+        jwt.verify(token, config.secret, function (err, decoded) {
         if (err) {
             return res.status(500).send({ auth: false, message: 'Failed to authenticate token.' });
         }
 
         // if everything good, save to request for use in other routes
         req.userId = decoded.id;
+        console.log(req.userId);
         next();
     });
+    }
+
+    
 }
 
 
